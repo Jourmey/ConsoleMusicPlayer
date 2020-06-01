@@ -33,6 +33,9 @@ namespace ConsoleMusicPlayer
 
         }
 
+
+        private static int lastNumber = 0;
+
         private static void A_AnalyzedAudioEventHandler(object sender, AnalyzedAudioEventArgs e)
         {
 
@@ -41,21 +44,34 @@ namespace ConsoleMusicPlayer
                 var max = e.AnalyzedAudio.Samples.Sum((w) => w.MaxSample);
                 var min = e.AnalyzedAudio.Samples.Sum((w) => w.MinSample);
 
-                StringBuilder a = new StringBuilder();
 
+                Console.SetCursorPosition(0, 20);
+                Console.ForegroundColor = ConsoleColor.Blue;
 
-                for (int i = 0; i < 0 - (int)(min * 10); i++)
+                int mi = 0 - (int)(min * 10);
+                int ma = 0 - (int)(min * 10);
+
+                for (int i = 0; i < mi; i++)
                 {
-                    a.Append("+");
+                    Console.Write('█');
                 }
 
-                for (int i = 0; i < (int)(max * 10); i++)
+                Console.ForegroundColor = ConsoleColor.DarkYellow;
+
+                for (int i = 0; i < ma; i++)
                 {
-                    a.Append("-");
+                    Console.Write('█');
                 }
 
+                if (mi + ma < lastNumber)
+                {
+                    for (int i = mi + ma; i < lastNumber; i++)
+                    {
+                        Console.Write("  ");
+                    }
+                }
 
-                Console.WriteLine(a.ToString());
+                lastNumber = mi + ma;
             }
         }
     }
