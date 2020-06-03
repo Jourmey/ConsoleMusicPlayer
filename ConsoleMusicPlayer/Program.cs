@@ -12,67 +12,100 @@ namespace ConsoleMusicPlayer
     {
         static void Main(string[] args)
         {
+            MusicService musicService = new MusicService();
+            musicService.MusicWaveEventHandler += MusicService_MusicWaveEventHandler;
+            musicService.MusicContextEventHandler += MusicService_MusicContextEventHandler;
 
-            string file = @"C:\Users\Administrator\Desktop\庆庆 - 蝙蝠.mp3";
-            var inputStream = new AudioFileReader(file);
-
-            var aggregator = new SampleAggregator(inputStream);
-            aggregator.NotificationCount = inputStream.WaveFormat.SampleRate / 100;
-            aggregator.PerformFFT = true;
-
-            AudioPlayback audioPlayback = new AudioPlayback();
-            audioPlayback.OpenFile(inputStream, aggregator);
-            audioPlayback.Play();
-
-
-            var a = new AudioAnalyzer(aggregator);
-
-            a.AnalyzedAudioEventHandler += A_AnalyzedAudioEventHandler;
-
+            musicService.Play();
             var s = Console.ReadKey();
 
         }
 
 
-        private static int lastNumber = 0;
+        private const int MaxHeight = 10;
+        private const int MaxWidth = 32;
+        private static int[] _topPosition = new int[MaxWidth];
+        private static bool[,] _topP = new bool[MaxWidth, MaxHeight];
 
-        private static void A_AnalyzedAudioEventHandler(object sender, AnalyzedAudioEventArgs e)
+
+        private static void MusicService_MusicWaveEventHandler(object sender, MusicWave e)
         {
-
-            if (e?.AnalyzedAudio.Samples != null)
+            if (e == null || e.Wave == null)
             {
-                var max = e.AnalyzedAudio.Samples.Sum((w) => w.MaxSample);
-                var min = e.AnalyzedAudio.Samples.Sum((w) => w.MinSample);
+                return;
+            }
 
 
-                Console.SetCursorPosition(0, 20);
-                Console.ForegroundColor = ConsoleColor.Blue;
+            for (int i = 0; i < MaxWidth; i++)
+            {
+                var w = e.Wave[i] * MaxHeight / 256;
 
-                int mi = 0 - (int)(min * 10);
-                int ma = 0 - (int)(min * 10);
-
-                for (int i = 0; i < mi; i++)
+                for (int j = 0; j < MaxHeight; j++)
                 {
-                    Console.Write('█');
-                }
-
-                Console.ForegroundColor = ConsoleColor.DarkYellow;
-
-                for (int i = 0; i < ma; i++)
-                {
-                    Console.Write('█');
-                }
-
-                if (mi + ma < lastNumber)
-                {
-                    for (int i = mi + ma; i < lastNumber; i++)
+                    if (j <= w)
                     {
-                        Console.Write("  ");
+                        _topP[i, j] = false;
+                    }
+                    else
+                    {
+                        _topP[i, j] = true;
+                    }
+
+                }
+
+                _topPosition[i] = Math.Max(_topPosition[i] - 1, w);
+
+            }
+
+            // 降落滑块
+            for (int i = 0; i < MaxWidth; i++)
+            {
+                var j = MaxHeight - _topPosition[i];
+                if (j >= 0 && j < MaxHeight)
+                {
+                    _topP[i, j] = true;
+                }
+            }
+
+
+            for (int j = 0; j < MaxHeight; j++)
+            {
+                List<char> buffer2 = new List<char>(MaxHeight);
+                for (int i = 0; i < MaxWidth; i++)
+                {
+                    if (_topP[i, j] == true)
+                    {
+                        buffer2.Add('█');
+                    }
+                    else
+                    {
+                        buffer2.Add(' ');
+                        buffer2.Add(' ');
                     }
                 }
-
-                lastNumber = mi + ma;
+                Console.SetCursorPosition(0, j + 5);
+                Console.WriteLine(buffer2.ToArray(), 0, buffer2.Count);
             }
+
         }
+
+        private static void MusicService_MusicContextEventHandler(object sender, MusicContext e)
+        {
+            if (e == null)
+            {
+                return;
+            }
+
+            Console.SetCursorPosition(0, 0);
+            Console.ForegroundColor = ConsoleColor.Cyan;
+
+            Console.WriteLine("---------------------");
+            Console.WriteLine($"Last |{e.LastName}");
+            Console.WriteLine($"Next |{ e.NextName }");
+            Console.WriteLine($"Now  |{ e.MusicName}");
+            Console.WriteLine("---------------------");
+
+        }
+
     }
 }
