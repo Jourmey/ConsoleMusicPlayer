@@ -1,4 +1,5 @@
-﻿using ConsoleMusicPlayer.Audio;
+﻿using AudioRecorder.Model;
+using ConsoleMusicPlayer.Audio;
 using NAudio.Wave;
 using System;
 using System.Collections.Generic;
@@ -9,49 +10,119 @@ namespace ConsoleMusicPlayer
 {
     public class MusicService
     {
-        private IWavePlayer _playbackDevice;
-        private AudioReader _inputStream;
+        public const int SPECTRUM_BIN_SIZE = 32;
 
-        public event EventHandler<MusicContext> MusicContextEventHandler;
+
+        private IWavePlayer _playbackDevice;
+        private SongManager _songManager;
+        private MediaFoundationReader _mediaFoundationReader;
+        private SampleAggregator _sampleAggregator;
+        //private SpectrumAnalyzer _spectrumAnalyser = new SpectrumAnalyzer();
+        private SpectrumAnalyser _analyser = new SpectrumAnalyser();
+
+
+        private MusicWave _wave = new MusicWave();
+
+
+
+        public event EventHandler<SongContext> SongContextEventHandler;
         public event EventHandler<MusicWave> MusicWaveEventHandler;
+
 
 
         public MusicService()
         {
-            string file = @"C:\Users\Administrator\Desktop\庆庆 - 蝙蝠.mp3";
+            this._songManager = new SongManager();
             this._playbackDevice = new WaveOut { DesiredLatency = 200 };
+            this._wave.Wave = new byte[SPECTRUM_BIN_SIZE];
+        }
 
-            this._inputStream = new AudioReader(file);
-            this._inputStream.MusicWaveEventHandler += (s, m) =>
+        internal void Init()
+        {
+            this._mediaFoundationReader = new MediaFoundationReader(this._songManager.GetNextSong());
+            this._sampleAggregator = new SampleAggregator(this._mediaFoundationReader.ToSampleProvider())
             {
-                if (this.MusicWaveEventHandler != null)
-                {
-                    MusicWaveEventHandler.Invoke(s, m);
-                }
-
+                NotificationCount = this._mediaFoundationReader.WaveFormat.SampleRate / 1024,
+                PerformFFT = true,
             };
-            this._playbackDevice.Init(this._inputStream);
 
+
+            this._sampleAggregator.PerformFFT = true;
+
+            this._sampleAggregator.FftCalculated += _sampleAggregator_FftCalculated;
+            this._sampleAggregator.MaximumCalculated += _sampleAggregator_MaximumCalculated;
+            //this._inputStream = new AudioReader();
+
+            this._playbackDevice.PlaybackStopped += _playbackDevice_PlaybackStopped;
+            this._playbackDevice.Init(this._sampleAggregator);
+        }
+
+        public MusicWave GetMusicWave()
+        {
+            return this._wave;
         }
 
 
+        private void _sampleAggregator_MaximumCalculated(object sender, MaxSampleEventArgs e)
+        {
+            //_spectrumAnalyser.AddAmplitude(e.MaxSample, e.MinSample);
+        }
+
+        private void _sampleAggregator_FftCalculated(object sender, FftEventArgs e)
+        {
+            //    _spectrumAnalyser.CalculateFFT(e.Result);
+
+            //    for (int i = 0; i < _spectrumAnalyser.SpecturmValue.Length; i++)
+            //    {
+            //        this._wave.Wave[i] = (byte)(_spectrumAnalyser.SpecturmValue[i] / _spectrumAnalyser.MaxSpectrumValue * 256);
+            //    }
+            var point = this._analyser.GetPoint(e.Result);
+
+            int step = point.Count / SPECTRUM_BIN_SIZE;
+            for (int i = 0; i < SPECTRUM_BIN_SIZE; i++)
+            {
+                this._wave.Wave[i] = 0;
+            }
+
+            for (int i = 0; i < point.Count; i++)
+            {
+                this._wave.Wave[i / step] += (byte)(point[i].Y / step * 256);
+            }
+
+            this._wave.CurrentTime = this._mediaFoundationReader.CurrentTime;
+            this._wave.TotalTime = this._mediaFoundationReader.TotalTime;
+
+            //for (int i = 0; i < point.Count; i++)
+            //{
+            //    this._wave.Wave[i] = (byte)(point[i].Y * 256);
+            //}
+        }
+
+        private void _inputStream_MusicWaveEventHandler(object sender, MusicWave e)
+        {
+            if (this.MusicWaveEventHandler != null)
+            {
+                e.IsPlaying = IsPlaying();
+                MusicWaveEventHandler.Invoke(this, e);
+            }
+        }
+
+        private void _playbackDevice_PlaybackStopped(object sender, StoppedEventArgs e)
+        {
+            changeSong();
+        }
+
         public void Play()
         {
-            if (this._playbackDevice != null && this._inputStream != null && this._playbackDevice.PlaybackState != PlaybackState.Playing)
+            if (this._playbackDevice != null && this._sampleAggregator != null && this._playbackDevice.PlaybackState != PlaybackState.Playing)
             {
                 this._playbackDevice.Play();
             }
 
-            if (MusicContextEventHandler != null)
+            if (SongContextEventHandler != null)
             {
-                MusicContextEventHandler.Invoke(this, new MusicContext
-                {
-                    LastName = this._inputStream.AudioFileReader.FileName,
-                    MusicName = this._inputStream.AudioFileReader.FileName,
-                    NextName = this._inputStream.AudioFileReader.FileName,
-                    TotalTime = this._inputStream.AudioFileReader.TotalTime,
-                    CurrentTime = this._inputStream.AudioFileReader.CurrentTime
-                });
+                SongContext songContext = this._songManager.GetSongContext();
+                SongContextEventHandler.Invoke(this, songContext);
             }
         }
 
@@ -63,10 +134,41 @@ namespace ConsoleMusicPlayer
             }
         }
 
+        public void Next()
+        {
+            changeSong();
+        }
+
+
+        public bool IsPlaying()
+        {
+            if (this._playbackDevice == null)
+            {
+                return false;
+            }
+
+            return this._playbackDevice.PlaybackState == PlaybackState.Playing;
+        }
+
+
+        private void changeSong()
+        {
+
+            this._mediaFoundationReader = new MediaFoundationReader(this._songManager.GetNextSong());
+            this._sampleAggregator.SetSource(this._mediaFoundationReader.ToSampleProvider());
+
+            if (SongContextEventHandler != null)
+            {
+                SongContext songContext = this._songManager.GetSongContext();
+                SongContextEventHandler.Invoke(this, songContext);
+            }
+        }
+
+
     }
 
 
-   
+
 
 
 

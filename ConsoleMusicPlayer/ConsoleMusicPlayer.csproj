@@ -44,10 +44,14 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Audio\AudioReader.cs" />
     <Compile Include="Audio\Module.cs" />
+    <Compile Include="Audio\SampleAggregator.cs" />
+    <Compile Include="Audio\SongManager.cs" />
+    <Compile Include="Audio\SpectrumAnalyser.cs" />
     <Compile Include="MusicService.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
